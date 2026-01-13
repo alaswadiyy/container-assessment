@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: muchtodo-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secretpassword
+      MONGO_INITDB_DATABASE: muchtodo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - muchtodo-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build: .
+    container_name: muchtodo-backend
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - DB_HOST=mongodb
+      - DB_PORT=27017
+      - DB_NAME=muchtodo
+      - DB_USERNAME=admin
+      - DB_PASSWORD=secretpassword
+      - SERVER_PORT=8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    networks:
+      - muchtodo-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  muchtodo-network:
+    driver: bridge

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: muchtodo
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: muchtodo-api:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: backend-configmap
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-configmap
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-configmap
+              key: DB_NAME
+        - name: DB_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-configmap
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backend-secret
+              key: db-password
+        - name: SERVER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-configmap
+              key: SERVER_PORT
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10

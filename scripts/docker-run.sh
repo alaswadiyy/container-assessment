@@ -1,12 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Start the application with docker-compose
-echo "Starting MuchTodo application with Docker Compose..."
-docker-compose up --build -d
+echo "Starting services with docker compose..."
+docker compose up -d
 
-echo "Application is starting..."
-echo "Backend API will be available at: http://localhost:8080"
-echo "MongoDB will be available at: localhost:27017"
-echo ""
-echo "To view logs: docker-compose logs -f"
-echo "To stop: docker-compose down"
+echo
+echo "Current containers:"
+docker ps
+
+echo
+echo "Hit http://localhost:3000/health in your browser or via curl to test the backend."

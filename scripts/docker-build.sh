@@ -1,10 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Build Docker image
-echo "Building Docker image..."
-docker build -t muchtodo-api:latest .
+IMAGE_NAME="muchtodo-backend"
+IMAGE_TAG="latest"
 
-# Tag for registry (optional)
-# docker tag muchtodo-api:latest your-registry/muchtodo-api:latest
-
-echo "Docker build completed successfully!"
+echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
+echo "Build complete."

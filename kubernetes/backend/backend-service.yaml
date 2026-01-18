@@ -6,8 +6,9 @@ metadata:
 spec:
   selector:
     app: backend
-  ports:
-  - port: 8080
-    targetPort: 8080
-    nodePort: 30080
   type: NodePort
+  ports:
+    - name: http
+      port: 80          # Cluster IP port
+      targetPort: 3000  # Container port
+      nodePort: 30080   # NodePort on the kind node

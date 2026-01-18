@@ -1,14 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mongodb-configmap
+  name: mongodb-config
   namespace: muchtodo
 data:
-  mongodb-init.js: |
-    db.createUser({
-      user: "muchtodo_user",
-      pwd: "userpassword123",
-      roles: [
-        { role: "readWrite", db: "muchtodo" }
-      ]
-    });
+  MONGO_INITDB_DATABASE: muchtodo
+  MONGO_PORT: "27017"

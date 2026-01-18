@@ -1,55 +1,56 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Create Kind cluster if not exists
-if ! kind get clusters | grep -q muchtodo-cluster; then
-    echo "Creating Kind cluster..."
-    kind create cluster --name muchtodo-cluster --config kind-config.yaml
+NAMESPACE="muchtodo"
+CLUSTER_NAME="muchtodo"
+IMAGE_NAME="muchtodo-backend:latest"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "Using project root: ${ROOT_DIR}"
+
+cd "${ROOT_DIR}"
+
+echo "Ensuring kind cluster '${CLUSTER_NAME}' exists..."
+if ! kind get clusters | grep -qx "${CLUSTER_NAME}"; then
+  echo "Creating kind cluster '${CLUSTER_NAME}'..."
+  kind create cluster --name "${CLUSTER_NAME}" --config kind-cluster.yaml
+else
+  echo "Kind cluster '${CLUSTER_NAME}' already exists."
 fi
 
-# Set kubectl context
-kubectl config use-context kind-muchtodo-cluster
+echo
+echo "Building Docker image..."
+docker build -t "${IMAGE_NAME}" .
 
-# Create namespace
-echo "Creating namespace..."
+echo
+echo "Loading image into kind cluster..."
+kind load docker-image "${IMAGE_NAME}" --name "${CLUSTER_NAME}"
+
+echo
+echo "Applying Kubernetes manifests..."
+
 kubectl apply -f kubernetes/namespace.yaml
 
-# Deploy MongoDB
-echo "Deploying MongoDB..."
-kubectl apply -f kubernetes/mongodb/mongodb-secret.yaml
-kubectl apply -f kubernetes/mongodb/mongodb-configmap.yaml
-kubectl apply -f kubernetes/mongodb/mongodb-pvc.yaml
-kubectl apply -f kubernetes/mongodb/mongodb-deployment.yaml
-kubectl apply -f kubernetes/mongodb/mongodb-service.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-configmap.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-secret.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-pvc.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-deployment.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-service.yaml
 
-# Wait for MongoDB to be ready
-echo "Waiting for MongoDB to be ready..."
-kubectl wait --namespace muchtodo --for=condition=ready pod -l app=mongodb --timeout=120s
+kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-configmap.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-secret.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-deployment.yaml
+kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-service.yaml
 
-# Deploy Backend
-echo "Deploying Backend..."
-# Load image to Kind cluster
-kind load docker-image muchtodo-api:latest --name muchtodo-cluster
+kubectl apply -n "${NAMESPACE}" -f kubernetes/ingress.yaml
 
-kubectl apply -f kubernetes/backend/backend-secret.yaml
-kubectl apply -f kubernetes/backend/backend-configmap.yaml
-kubectl apply -f kubernetes/backend/backend-deployment.yaml
-kubectl apply -f kubernetes/backend/backend-service.yaml
+echo
+echo "Resources in namespace ${NAMESPACE}:"
+kubectl get pods -n "${NAMESPACE}"
+kubectl get svc -n "${NAMESPACE}"
+kubectl get ingress -n "${NAMESPACE}"
 
-# Deploy Ingress
-echo "Deploying Ingress..."
-kubectl apply -f kubernetes/ingress.yaml
-
-# Wait for Backend to be ready
-echo "Waiting for Backend to be ready..."
-kubectl wait --namespace muchtodo --for=condition=ready pod -l app=backend --timeout=120s
-
-echo ""
-echo "Deployment completed successfully!"
-echo ""
-echo "Access the application via:"
-echo "1. NodePort: http://localhost:30080"
-echo "2. Port forward: kubectl port-forward svc/backend-service 8080:8080 -n muchtodo"
-echo ""
-echo "Check pod status: kubectl get pods -n muchtodo"
-echo "Check services: kubectl get svc -n muchtodo"
-echo "Check ingress: kubectl get ingress -n muchtodo"
+echo
+echo "You can now test the app via NodePort:"
+echo "  curl http://localhost:30080/health"

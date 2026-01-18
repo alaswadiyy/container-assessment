@@ -1,44 +1,52 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+# =========================
+# Builder stage
+# =========================
+FROM golang:1.25.1-alpine AS builder
+
+# Install git for go modules that use it
+RUN apk add --no-cache git
+
+# Work inside /src
+WORKDIR /src
+
+# Copy go module files first for better caching
+COPY app/go.mod app/go.sum ./
+RUN go mod download || true
+
+# Copy the rest of the application source
+COPY app/ ./
+
+# Build the binary (main is in cmd/api)
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o muchtodo ./cmd/api
+
+# =========================
+# Runtime stage
+# =========================
+FROM alpine:3.20
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Install dependencies
-COPY go.mod go.sum ./
-RUN go mod download
+# Copy binary from builder
+COPY --from=builder /src/muchtodo /app/muchtodo
 
-# Copy source code
-COPY . .
+# Copy binary from builder
+COPY --from=builder /src/muchtodo /app/muchtodo
+# Copy environment file (so viper/.env loader can see it)
+COPY --from=builder /src/.env /app/.env
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o muchtodo-api .
+# Install curl for healthcheck
+RUN apk add --no-cache curl
 
-# Final stage
-FROM alpine:latest
+# Expose app port
+EXPOSE 3000
 
-RUN apk --no-cache add ca-certificates
+# Container healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://127.0.0.1:3000/health || exit 1
 
-WORKDIR /root/
+USER appuser
 
-# Create non-root user
-RUN addgroup -g 1000 muchtodo && \
-    adduser -D -u 1000 -G muchtodo muchtodo
-
-# Copy the binary from builder
-COPY --from=builder /app/muchtodo-api .
-COPY --from=builder /app/.env.example .env
-
-# Change ownership to non-root user
-RUN chown muchtodo:muchtodo muchtodo-api .env
-
-USER muchtodo
-
-# Expose port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
-
-# Run the application
-CMD ["./muchtodo-api"]
+CMD ["./muchtodo"]

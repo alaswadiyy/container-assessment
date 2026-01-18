@@ -1,57 +1,42 @@
-version: '3.8'
+version: "3.9"
 
 services:
-  mongodb:
-    image: mongo:6
-    container_name: muchtodo-mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: secretpassword
-      MONGO_INITDB_DATABASE: muchtodo
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    networks:
-      - muchtodo-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   backend:
-    build: .
+    image: muchtodo-backend:latest
     container_name: muchtodo-backend
     restart: unless-stopped
     depends_on:
-      mongodb:
-        condition: service_healthy
+      - mongodb
     environment:
-      - DB_HOST=mongodb
-      - DB_PORT=27017
-      - DB_NAME=muchtodo
-      - DB_USERNAME=admin
-      - DB_PASSWORD=secretpassword
-      - SERVER_PORT=8080
+      PORT: 3000
+      # Main Mongo connection strings (both names, so either works)
+      MONGO_URI: mongodb://root:example@mongodb:27017/?authSource=admin
+      MONGODB_URI: mongodb://root:example@mongodb:27017/?authSource=admin
+      # Extra DB config
+      DB_NAME: much_todo_db
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      # Auth / logging
+      JWT_SECRET_KEY: dev-secret-key-change-me
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: json
     ports:
-      - "8080:8080"
+      - "3000:3000"
+
+  mongodb:
+    image: mongo:7.0
+    container_name: muchtodo-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: much_todo_db
     volumes:
-      - .:/app
-    networks:
-      - muchtodo-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
 
 volumes:
-  mongodb_data:
-    driver: local
-
-networks:
-  muchtodo-network:
-    driver: bridge
+  mongo-data:

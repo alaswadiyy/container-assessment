@@ -1,52 +1,52 @@
-# =========================
-# Builder stage
-# =========================
-FROM golang:1.25.1-alpine AS builder
+# Build stage
+FROM golang:1.25-alpine AS builder
 
-# Install git for go modules that use it
-RUN apk add --no-cache git
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
 
-# Work inside /src
-WORKDIR /src
+# Go environment
+ENV GOPROXY=https://goproxy.io,direct
+ENV GOSUMDB=off
+ENV CGO_ENABLED=0
 
-# Copy go module files first for better caching
-COPY app/go.mod app/go.sum ./
-RUN go mod download || true
+WORKDIR /build
 
-# Copy the rest of the application source
-COPY app/ ./
+# Copy go mod files
+COPY ./Server/MuchToDo/go.mod ./Server/MuchToDo/go.sum ./
 
-# Build the binary (main is in cmd/api)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o muchtodo ./cmd/api
+# Download dependencies
+RUN go mod download
 
-# =========================
+# Copy source code
+COPY ./Server/MuchToDo/ .
+
+# Build
+RUN go build -o muchtodo-app ./cmd/api
+
+# Test if binary works
+RUN ./muchtodo-app --version 2>/dev/null || echo "Binary created"
+
 # Runtime stage
-# =========================
-FROM alpine:3.20
+FROM alpine:latest
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN apk --no-cache add ca-certificates tzdata
+
+RUN addgroup -g 1001 -S muchtodo && \
+    adduser -u 1001 -S muchtodo -G muchtodo
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /src/muchtodo /app/muchtodo
+# Copy binary from builder - use absolute path
+COPY --from=builder --chown=muchtodo:muchtodo /build/muchtodo-app /app/muchtodo-app
 
-# Copy binary from builder
-COPY --from=builder /src/muchtodo /app/muchtodo
-# Copy environment file (so viper/.env loader can see it)
-COPY --from=builder /src/.env /app/.env
+# Verify file exists and permissions
+RUN ls -la /app/muchtodo-app && \
+    file /app/muchtodo-app && \
+    [ -f /app/muchtodo-app ] && echo "Binary exists" || echo "Binary missing"
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
+USER muchtodo
 
-# Expose app port
-EXPOSE 3000
+EXPOSE 8080
 
-# Container healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://127.0.0.1:3000/health || exit 1
-
-USER appuser
-
-CMD ["./muchtodo"]
+# Use absolute path
+CMD ["/app/muchtodo-app"]

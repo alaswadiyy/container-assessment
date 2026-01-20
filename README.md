@@ -1,92 +1,85 @@
-# container-assessment
-Barakah third semester assessment
-# MuchTodo Application - Containerization and Kubernetes Deployment
-
-## Overview
-This project containerizes the MuchTodo Golang backend application with MongoDB database and deploys it to Kubernetes.
+# MuchTodo Application Containerization
+This project containerizes the MuchTodo Golang backend application and deploys it to Kubernetes.
 
 ## Prerequisites
-- Docker & Docker Compose
+- Docker
+- Docker Compose
 - Kubernetes CLI (kubectl)
 - Kind (Kubernetes in Docker)
-- Go 1.25+ (for local development)
+- Go 1.25+
 
-## Project Structure
-
-```
-.
-├── MuchToDo/                 # Go application source code
-├── kubernetes/               # Kubernetes manifests
-│   ├── backend/             # Backend deployment, service, secrets
-│   ├── mongodb/             # MongoDB deployment, service, PVC
-│   ├── namespace.yaml       # Namespace definition
-│   ├── ingress.yaml         # Ingress configuration
-│   └── kind-config.yaml     # KIND cluster configuration
-├── scripts/                  # Deployment automation scripts
-│   ├── docker-build.sh      # Build Docker images
-│   ├── docker-run.sh        # Run with docker-compose
-│   ├── k8s-deploy.sh        # Deploy to Kubernetes
-│   └── k8s-cleanup.sh       # Clean up Kubernetes resources
-├── docker-compose.yaml       # Docker Compose configuration
-├── Dockerfile               # Multi-stage Docker build
-├── .dockignore            # Example environment variables
-└── README.md                  # ReadMe
-
-```
+---
 
 ## Quick Start
-
-### 1. Local Development with Docker Compose
+Clone the repository
 ```bash
-# Build and run the application
-./scripts/docker-run.sh
+git clone https://github.com/alaswadiyy/container-assessment.git
+```
 
-# Or manually
-docker-compose up --build -d
+---
 
-# Check logs
-docker-compose logs -f
+## Docker Development
+1. copy `.env.example` to `.env`, then update the content accordingly
+   ```bash
+   cp MuchToDo/.env.example MuchToDo/.env
+   ```
+2. Run: `./scripts/docker-build.sh`
+   ![docker_build](./evidence/docker-build.png)
+3. Run: `./scripts/docker-run.sh`
+   ![docker_compose](./evidence/docker-compose.png)
+4. Access: http://localhost:8080/swagger/index.html
+   ![docker_compose_app_response](./evidence/docker-compose-app-response.png)
 
-# Stop the application
-docker-compose down
+---
 
-# Build Docker image
-./scripts/docker-build.sh
+## Kubernetes Deployment
+1. Ensure `step 1` from `Docker Developement` above has been done, if not repeat the step
+2. Update the env path in `k8s-deploy.sh`
+   ```bash
+   kubectl create secret generic backend-env --from-file=.env=<path-to-your-env> \
+      -n muchtodo --dry-run=client -o yaml | kubectl apply -f -
+   ```
+3. Run: `./scripts/k8s-deploy.sh`
+   - Kind cluster creation
+   ![kind_cluster_creation](./evidence/kind-cluster-creation.png)
+   - Kubernetes deployments running
+   ![k8s_deploy_start](./evidence/k8s-deployments-running-1.png)
+   ![k8s_deploy_midway](./evidence/k8s-deployments-running-2.png)
+   ![k8s_deploy_finish](./evidence/k8s-deployments-running-3.png)
+4. Application accessible through a NodePort Service type to the host or Kubernetes ingress
+   ![k8s_deploy_app_response](./evidence/application-accessible.png)
+5. Kubectl commands showing pod status, services, and ingress
+   ![kubectl_pod_status_services_ingress.png](./evidence/kubectl-pod-status-services-ingress.png)
 
-# Deploy to Kubernetes
-./scripts/k8s-deploy.sh
+For detailed script flow execution read [Documentation](./Documentation.md)
 
-# Clean up
-./scripts/k8s-cleanup.sh
+---
 
-# Check Docker containers
-docker-compose ps
+## Cleanup
+1. Shut down the entire Docker Compose stack and deletes its data volumes:
+   `sudo docker compose down -v`
+2. Clean up unused Docker resources system-wide:
+   `sudo docker system prune -af`
+3. Kubernetes:
+   `./scripts/k8s-cleanup.sh`
+   ![k8s_cleanup_process_start](./evidence/k8s-cleanup-process-1.png)
+   ![k8s_cleanup_process_finish](./evidence/k8s-cleanup-process-2.png)
 
-# Check Kubernetes pods
-kubectl get pods -n muchtodo
+---
 
-# Check Kubernetes services
-kubectl get svc -n muchtodo
+## Architecture
+- Backend: Golang API on port 8080
+- Database: MongoDB with persistence
+- Kubernetes: Namespace-scoped deployment
+- Ingress: Nginx ingress controller
 
-# Check Kubernetes ingress
-kubectl get ingress -n muchtodo
+---
 
-# View logs
-kubectl logs -f deployment/backend -n muchtodo
+## Health Checks
+- Backend: http://localhost:8080/health
+- MongoDB: Internal health probes
 
+---
 
-### **5. Evidence Collection**
-
-For evidence folder, there are capture screenshots of:
-
-1. **Docker Build Process**: `docker build -t muchtodo-api:latest .`
-2. **Docker Compose Running**: `docker-compose ps`
-3. **Application Health Check**: `curl http://localhost:8080/health`
-4. **Kind Cluster Creation**: `kind create cluster`
-5. **Kubernetes Pods Running**: `kubectl get pods -n muchtodo`
-6. **Services Status**: `kubectl get svc -n muchtodo`
-7. **Ingress Status**: `kubectl get ingress -n muchtodo`
-8. **Application Access**: Browser showing API response
-
-
-You can now fork the repository and implement this solution step by step. Let me know if you need help with any specific part!
+## Environment Variables
+See `docker-compose.yml`, Kubernetes configs and secrets for environment configuration.

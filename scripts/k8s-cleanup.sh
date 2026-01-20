@@ -1,30 +1,22 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-NAMESPACE="muchtodo"
-CLUSTER_NAME="muchtodo"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+set -e
 
-cd "${ROOT_DIR}"
+echo "Deleting Kubernetes resources..."
+kubectl delete -f kubernetes/ingress.yaml || true
+kubectl delete -f kubernetes/backend/ || true
+kubectl delete -f kubernetes/mongodb/ || true
+kubectl delete -f kubernetes/namespace.yaml || true
 
-echo "Deleting Kubernetes resources in namespace '${NAMESPACE}'..."
+echo "Deleting Kind cluster..."
+kind delete cluster --name muchtodo-cluster
 
-kubectl delete -n "${NAMESPACE}" -f kubernetes/ingress.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/backend/backend-service.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/backend/backend-deployment.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/backend/backend-secret.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/backend/backend-configmap.yaml --ignore-not-found
+echo "Stopping local registry..."
+docker stop kind-registry
+docker rm kind-registry
 
-kubectl delete -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-service.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-deployment.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-pvc.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-secret.yaml --ignore-not-found
-kubectl delete -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-configmap.yaml --ignore-not-found
+echo "Removing orphan containers and unused volumes"
+docker system prune -a
+docker system prune --volumes
 
-kubectl delete -f kubernetes/namespace.yaml --ignore-not-found
-
-echo
-echo "Kubernetes resources deleted."
-
-echo "If you also want to delete the kind cluster, run:"
-echo "  kind delete cluster --name ${CLUSTER_NAME}"
+echo "Cleanup completed!"

@@ -1,12 +1,14 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-echo "Starting services with docker compose..."
-docker compose up -d
+set -e
 
-echo
-echo "Current containers:"
-docker ps
+echo "Starting MuchTodo application with Docker Compose..."
+sudo docker compose up -d
 
-echo
-echo "Hit http://localhost:3000/health in your browser or via curl to test the backend."
+echo "Waiting for services to start..."
+sleep 10
+
+echo "Checking service status..."
+sudo docker compose ps
+
+echo "Application should be available at http://localhost:8080"

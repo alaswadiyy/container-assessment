@@ -4,8 +4,6 @@ metadata:
   name: backend-config
   namespace: muchtodo
 data:
-  PORT: "3000"
-  DB_NAME: "much_todo_db"
-  ENABLE_CACHE: "false"
-  LOG_LEVEL: "DEBUG"
-  LOG_FORMAT: "json"
+  PORT: "8080"
+  LOG_LEVEL: "info"
+  MONGODB_URI: mongodb://muchtodo_user:muchtodo_pass@mongodb.muchtodo.svc.cluster.local:27017/muchtodo?authSource=admin

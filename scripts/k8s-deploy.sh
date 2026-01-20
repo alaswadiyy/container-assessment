@@ -1,56 +1,63 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-NAMESPACE="muchtodo"
-CLUSTER_NAME="muchtodo"
-IMAGE_NAME="muchtodo-backend:latest"
+set -e
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "Creating Kind cluster..."
+kind create cluster --config ./kind-config.yaml --name muchtodo-cluster
 
-echo "Using project root: ${ROOT_DIR}"
-
-cd "${ROOT_DIR}"
-
-echo "Ensuring kind cluster '${CLUSTER_NAME}' exists..."
-if ! kind get clusters | grep -qx "${CLUSTER_NAME}"; then
-  echo "Creating kind cluster '${CLUSTER_NAME}'..."
-  kind create cluster --name "${CLUSTER_NAME}" --config kind-cluster.yaml
-else
-  echo "Kind cluster '${CLUSTER_NAME}' already exists."
-fi
-
-echo
-echo "Building Docker image..."
-docker build -t "${IMAGE_NAME}" .
-
-echo
-echo "Loading image into kind cluster..."
-kind load docker-image "${IMAGE_NAME}" --name "${CLUSTER_NAME}"
-
-echo
-echo "Applying Kubernetes manifests..."
-
+echo "Creating namespace..."
 kubectl apply -f kubernetes/namespace.yaml
 
-kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-configmap.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-secret.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-pvc.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-deployment.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/mongodb/mongodb-service.yaml
+echo "Deploying MongoDB..."
+kubectl apply -f kubernetes/mongodb
 
-kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-configmap.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-secret.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-deployment.yaml
-kubectl apply -n "${NAMESPACE}" -f kubernetes/backend/backend-service.yaml
+echo "Checking MongoDB status..."
+kubectl get pods -n muchtodo -l app=mongodb
 
-kubectl apply -n "${NAMESPACE}" -f kubernetes/ingress.yaml
+echo "Waiting for MongoDB to be ready..."
+kubectl wait --namespace=muchtodo --for=condition=ready pod -l app=mongodb --timeout=600s || true
 
-echo
-echo "Resources in namespace ${NAMESPACE}:"
-kubectl get pods -n "${NAMESPACE}"
-kubectl get svc -n "${NAMESPACE}"
-kubectl get ingress -n "${NAMESPACE}"
+echo "Creating local registry..."
+docker run -d --restart=always -p "5001:5000" --name "kind-registry" registry:2 || true
 
-echo
-echo "You can now test the app via NodePort:"
-echo "  curl http://localhost:30080/health"
+echo "Connecting registry to Kind network..."
+docker network connect kind kind-registry || true
+
+echo "Building and pushing application image..."
+./scripts/docker-build.sh
+
+echo "Creating secret from .env file..."
+kubectl create secret generic backend-env --from-file=.env=$HOME/Downloads/month-two-assessment/Server/MuchToDo/.env \
+  -n muchtodo --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Deploying backend application..."
+kubectl apply -f kubernetes/backend
+
+echo "Checking backend status..."
+kubectl get pods -n muchtodo -l app=backend
+
+echo "Waiting for backend to be ready..."
+kubectl wait --namespace=muchtodo --for=condition=ready pod -l app=backend --timeout=600s || true
+
+echo "Installing NGINX Ingress Controller for Kind..."
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml
+
+echo "Waiting for Ingress controller to be initialized..."
+kubectl wait --namespace=ingress-nginx --for=condition=ready pod \
+  -l app.kubernetes.io/component=controller --timeout=1350s || true
+
+echo "Verifying webhook configuration exists..."
+kubectl get validatingwebhookconfiguration ingress-nginx-admission
+
+echo "Checking Ingress controller status..."
+kubectl get pods -n ingress-nginx -l app.kubernetes.io/component=controller
+
+echo "Deploying ingress..."
+kubectl apply -f kubernetes/ingress.yaml
+
+echo "Checking ingress status..."
+kubectl get ingress -n muchtodo
+kubectl describe ingress muchtodo-ingress -n muchtodo
+
+echo "Deployment completed!"
+echo "Access the application at: http://localhost/swagger/index.html"

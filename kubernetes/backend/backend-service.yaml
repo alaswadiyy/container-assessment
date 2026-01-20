@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend-service
+  name: backend
   namespace: muchtodo
 spec:
   selector:
     app: backend
-  type: NodePort
   ports:
-    - name: http
-      port: 80          # Cluster IP port
-      targetPort: 3000  # Container port
-      nodePort: 30080   # NodePort on the kind node
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  type: ClusterIP

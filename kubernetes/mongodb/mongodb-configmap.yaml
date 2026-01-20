@@ -4,5 +4,6 @@ metadata:
   name: mongodb-config
   namespace: muchtodo
 data:
-  MONGO_INITDB_DATABASE: muchtodo
-  MONGO_PORT: "27017"
+  mongodb-database: "muchtodo"
+  mongodb-port: "27017"
+  

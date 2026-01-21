@@ -3,7 +3,7 @@
 set -e
 
 echo "Creating Kind cluster..."
-kind create cluster --config ./kind-config.yaml --name muchtodo-cluster
+sudo kind create cluster --config ./kind-config.yaml --name muchtodo-cluster
 
 echo "Creating namespace..."
 kubectl apply -f kubernetes/namespace.yaml

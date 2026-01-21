@@ -12,13 +12,13 @@ ENV CGO_ENABLED=0
 WORKDIR /build
 
 # Copy go mod files
-COPY ./Server/MuchToDo/go.mod ./Server/MuchToDo/go.sum ./
+COPY ./MuchToDo/go.mod ./MuchToDo/go.sum ./
 
 # Download dependencies
 RUN go mod download
 
 # Copy source code
-COPY ./Server/MuchToDo/ .
+COPY .MuchToDo/ .
 
 # Build
 RUN go build -o muchtodo-app ./cmd/api
